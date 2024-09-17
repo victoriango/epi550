@@ -1,0 +1,121 @@
+---
+title: "Epi 550 Homework 1"
+format: html
+editor: visual
+author: "Victoria Ngo"
+date: 09-10-2024
+---
+
+## **Logistic Regression Practice**
+
+On Canvas, you will find a SAS dataset entitled DHS_water. To conduct these analyses in R, begin with the code below. You will also need to load the car package.
+
+```{r}
+#DHS_water <- haven::read_sas(“DHS_water.sas7bdat")
+```
+
+These data come from the [Demographic and Health Surveys (DHS) Program](https://dhsprogram.com/) – a collection of more than 300 surveys from over 90 countries that are used to collect information on fertility, family planning, maternal and child health, gender, HIV/AIDS, malaria, and nutrition. This particular dataset is a subset of a DHS model dataset which has been constructed for practice, and does not represent any country’s actual data.   
+
+Access to clean water - a human right - is often used to measure progress towards eliminating poverty, morbidity, and mortality. Clean water and breastfeeding are both important for infant health globally. It is possible that the distance that someone must travel to access water may impact their ability to breastfeed. For this assignment, you are interested in learning whether there is a relationship between the distance that a person must travel to get to their water source and breastfeeding. The type of water source[\[1\]](#_ftn1) that someone has access to may be associated with both the distance traveled and breastfeeding – thus, you will consider this as a potential confounder. You have access to the following data:
+
++-----------------------------+-------------------------------------+
+| **Variable Name**           | **Coding**                          |
++-----------------------------+-------------------------------------+
+| Breastfeeding (dependent)   | 1 – Ever or currently breastfeeding |
+|                             |                                     |
+|                             | 0 – Never breastfed                 |
++-----------------------------+-------------------------------------+
+| WaterDistance (independent) | 1 – Water source is on-site         |
+|                             |                                     |
+|                             | 0 – Water source is off-site        |
++-----------------------------+-------------------------------------+
+| WaterSource (counfounder)   | 1 – Improved water source           |
+|                             |                                     |
+|                             | 0 – Unimproved water source         |
++-----------------------------+-------------------------------------+
+
+[\[1\]](#_ftnref1) If you’d like to know more about improved and unimproved water sources, you can learn more [here](https://www.cdc.gov/healthywater/global/assessing.html)
+
+## Questions
+
+```{r}
+#| message: false
+#| warning: false
+library(tidyverse)
+library(haven)
+library(dplyr)
+library(car)
+DHS_water <- haven::read_sas(here::here("Data", "DHS_water.sas7bdat"))
+view(DHS_water)
+```
+
+1.  **What is the exposure of interest, and how are the index and reference groups defined?**
+
+    The exposure of interest is the distance that someone must travel to access water. The index group is those who have a water source on-site and the reference group is those who have a water source off-site.
+
+2.  **What is the outcome of interest, and how are the index and reference groups defined?**
+
+    The outcome of interest is someone's ability to breastfeed. The index group is those who have ever breastfed and those who are currently breastfeeding and the reference group is those who have never breastfed.
+
+3.  **Write the logit form of the model that allows you to address the research question described above using the population parameters (i.e., do not fill in the estimated regression coefficients).**
+
+    logit ( P ( Breastfeeding) ) =(a+ B1 ( WaterDistance) + y1 (WaterSource))
+
+4.  **Run this model in SAS or R to find the estimated odds ratio for the association between distance to the water source and breastfeeding, adjusted for the type of water source.**
+
+    ```{r}
+    full <- glm(Breastfeeding ~ WaterDistance + WaterSource,
+                family = binomial (link = 'logit'), data = DHS_water)
+    cbind(exp(coef(full)), exp(confint.default(full)))
+    ```
+
+    After controlling for WaterSource, the odds of breastfeeding among persons with a water source on-site was 0.60 times the odds of breastfeeding among persons without an on-site water source.
+
+    CI95%: (0.41, 0.88)
+
+5.  **Use both Wald and likelihood ratio tests to determine whether there is a statistically significant association between the distance to the water source and breastfeeding, controlling for the type of water source.**
+
+    ```{r}
+    DHS_water1 <-DHS_water[!is.na(DHS_water$Breastfeeding)
+                          & !is.na(DHS_water$WaterDistance)
+                            & !is.na(DHS_water$WaterSource),]
+    reduced <- glm(Breastfeeding ~ WaterSource,
+                   family=binomial (link='logit'),
+                   data = DHS_water1)
+    anova(full, reduced, test = 'Chisq')
+    car::Anova(full, test = "Wald")
+    ```
+
+    **i. What is the null hypothesis for these tests?**
+
+    H0: all B tested = 0
+
+    Ha: at least one B =/= 0
+
+    **ii. What are the test statistics and associated p-values?**
+
+    |                       | Test Stat | P value |
+    |-----------------------|-----------|---------|
+    | Wald                  | 6.97      | 0.00829 |
+    | Likeliness Ratio Test | 6.31      | 0.01198 |
+
+6.  **Write a 1-2 sentence summary of the study findings.**
+
+    The odds of breastfeeding among persons with a water source on-site was 0.60 times the odds of breastfeeding among persons without a water source on-site. CI95%: (0.41, 0.88). There was a significant association between water source distance and breastfeeding, which was confirmed by the Wald test (p = 0.0083) and the likelihood ratio test (p = 0.012, alpha = 0.05.
+
+7.  **Fit the same model as described above, but recode WaterDistance as follows: -1: off-site, 1: on-site. Estimate the odds ratio for the between the distance to the water source and breastfeeding, controlling for the type of water source using the new coding. Compare your answer to what you found in Question 3, and comment on whether your responses differ and why.**
+
+    ```{r}
+    DHS_water2 <- DHS_water1 %>%
+      mutate(WaterDistance = if_else(WaterDistance ==0,-1,1))
+
+    full2 <- glm(Breastfeeding ~ WaterDistance + WaterSource,
+                family = binomial (link = 'logit'), data = DHS_water2)
+    cbind(exp(coef(full2)), exp(confint.default(full2)))
+    ```
+
+    Compared to my results in question 3, after controlling for WaterSource, the odds of breastfeeding among persons with a water source on-site were 0.78 times the odds of breastfeeding among persons without an on-site water source.
+
+    CI95%: (0.64, 0.94)
+
+    The responses differ due to the change in the reference group from 0 to -1. This change alters the scale when performing the logistic regression coefficient.
